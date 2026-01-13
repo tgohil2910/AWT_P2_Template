@@ -1,0 +1,368 @@
+name: React Practical Auto Grading (Final)
+
+on: [push]
+
+jobs:
+  autograde:
+    runs-on: ubuntu-latest
+
+    steps:
+    # ----------------------------
+    # CHECKOUT
+    # ----------------------------
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # ----------------------------
+    # INSTALL NODE (FOR REACT APPS)
+    # ----------------------------
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    # ----------------------------
+    # HARD FAIL RULES (NO MARKS)
+    # ----------------------------
+
+    - name: ❌ Fail if node_modules committed
+      run: |
+        if find . -type d -name "node_modules" | grep -q .; then
+          echo "❌ node_modules detected in repository. Auto-fail (0 marks)."
+          echo "Please ensure node_modules is in .gitignore"
+          exit 1
+        fi
+
+    - name: ❌ Fail if React is not imported
+      run: |
+        # Check both practicals for React imports
+        if ! (grep -r "from 'react'" practical-2-hello-world/src/ && grep -r "from 'react'" practical-3-components/src/); then
+          echo "❌ React not imported in source files. Auto-fail (0 marks)."
+          exit 1
+        fi
+
+    - name: ❌ Fail if no JSX found (HTML-only cheating)
+      run: |
+        if ! (grep -r "<[A-Za-z]" practical-2-hello-world/src/ || grep -r "<[A-Za-z]" practical-3-components/src/); then
+          echo "❌ No JSX detected. HTML-only solution. Auto-fail (0 marks)."
+          exit 1
+        fi
+
+    - name: ❌ Fail if form/login exists in public HTML
+      run: |
+        if grep -r "<form" practical-3-components/public/ || grep -r "login" practical-3-components/public/; then
+          echo "❌ Form detected in public/index.html. Auto-fail (0 marks)."
+          exit 1
+        fi
+
+    - name: ❌ Fail if no React state used (Practical 3)
+      run: |
+        if ! grep -r "useState" practical-3-components/src/; then
+          echo "❌ useState not used in Practical 3. Auto-fail (0 marks)."
+          exit 1
+        fi
+
+    # ----------------------------
+    # INITIALIZE SCORE
+    # ----------------------------
+    - name: Initialize score
+      run: echo "SCORE=0" >> $GITHUB_ENV
+
+    # ============================
+    # PRACTICAL 2 – HELLO WORLD
+    # ============================
+
+    - name: P2 – React structure exists (2 marks)
+      run: |
+        if [ -f practical-2-hello-world/package.json ] && \
+           [ -f practical-2-hello-world/src/App.js ] && \
+           [ -f practical-2-hello-world/src/index.js ]; then
+          echo "✅ Practical 2 structure correct"
+          echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
+        else
+          echo "❌ Practical 2 structure incomplete"
+        fi
+
+    - name: P2 – npm install works (2 marks)
+      run: |
+        cd practical-2-hello-world
+        if npm install --silent; then
+          echo "✅ Practical 2 npm install successful"
+          echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
+        else
+          echo "❌ Practical 2 npm install failed"
+        fi
+        cd ..
+
+    - name: P2 – Hello World rendered from App.js (3 marks)
+      run: |
+        if grep -q "Hello World" practical-2-hello-world/src/App.js || \
+           grep -q "hello world" practical-2-hello-world/src/App.js || \
+           grep -q "HelloWorld" practical-2-hello-world/src/App.js; then
+          echo "✅ Hello World rendered in App.js"
+          echo "SCORE=$((SCORE+3))" >> $GITHUB_ENV
+        else
+          echo "❌ Hello World not found in App.js"
+        fi
+
+    # ============================
+    # PRACTICAL 3 – COMPONENTS
+    # ============================
+
+    - name: P3 – Verify project structure (2 marks)
+      run: |
+        if [ -d practical-3-components/src/components/ ] && \
+           [ -f practical-3-components/package.json ] && \
+           [ -f practical-3-components/src/App.js ] && \
+           [ -f practical-3-components/src/index.js ]; then
+          echo "✅ Practical 3 structure correct"
+          echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
+        else
+          echo "❌ Practical 3 structure incomplete"
+        fi
+
+    - name: P3 – Verify components exist (2 marks)
+      run: |
+        COMPONENTS_EXIST=1
+        for comp in Counter TweetInput ThemeSwitcher; do
+          if [ ! -f "practical-3-components/src/components/${comp}.js" ] && \
+             [ ! -f "practical-3-components/src/components/${comp}.jsx" ]; then
+            echo "❌ Missing component: ${comp}"
+            COMPONENTS_EXIST=0
+          fi
+        done
+        
+        if [ $COMPONENTS_EXIST -eq 1 ]; then
+          echo "✅ All 3 components exist"
+          echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
+        fi
+
+    # ----------------------------
+    # COUNTER COMPONENT CHECKS (3 marks)
+    # ----------------------------
+    - name: P3 – Counter: Verify initial state is 0 (1 mark)
+      run: |
+        if grep -r "useState(0)" practical-3-components/src/components/Counter.* 2>/dev/null || \
+           grep -r "useState( 0 )" practical-3-components/src/components/Counter.* 2>/dev/null; then
+          echo "✅ Counter starts at 0"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Counter does not start at 0"
+        fi
+
+    - name: P3 – Counter: Separate increment/decrement buttons (1 mark)
+      run: |
+        if grep -r "Increment" practical-3-components/src/components/Counter.* 2>/dev/null && \
+           grep -r "Decrement" practical-3-components/src/components/Counter.* 2>/dev/null; then
+          echo "✅ Separate increment/decrement buttons found"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Missing separate increment/decrement buttons"
+        fi
+
+    - name: P3 – Counter: State updates correctly (1 mark)
+      run: |
+        if grep -r "count + 1" practical-3-components/src/components/Counter.* 2>/dev/null && \
+           grep -r "count - 1" practical-3-components/src/components/Counter.* 2>/dev/null; then
+          echo "✅ Counter state updates correctly"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Counter state updates not implemented correctly"
+        fi
+
+    # ----------------------------
+    # TWEET INPUT COMPONENT CHECKS (3 marks)
+    # ----------------------------
+    - name: P3 – TweetInput: Character limit logic (1 mark)
+      run: |
+        if grep -r "50" practical-3-components/src/components/TweetInput.* 2>/dev/null || \
+           grep -r "maxLength.*50" practical-3-components/src/components/TweetInput.* 2>/dev/null; then
+          echo "✅ Character limit (50) implemented"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Character limit not implemented"
+        fi
+
+    - name: P3 – TweetInput: Visual feedback (red text) (1 mark)
+      run: |
+        if grep -r "red" practical-3-components/src/components/TweetInput.* 2>/dev/null || \
+           grep -r "className.*red" practical-3-components/src/components/TweetInput.* 2>/dev/null || \
+           grep -r "style.*color.*red" practical-3-components/src/components/TweetInput.* 2>/dev/null; then
+          echo "✅ Visual feedback (red text) implemented"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Visual feedback (red text) not implemented"
+        fi
+
+    - name: P3 – TweetInput: Button disabled logic (1 mark)
+      run: |
+        if grep -r "disabled" practical-3-components/src/components/TweetInput.* 2>/dev/null && \
+           (grep -r "length.*>.*50" practical-3-components/src/components/TweetInput.* 2>/dev/null || \
+            grep -r "50.*<.*length" practical-3-components/src/components/TweetInput.* 2>/dev/null); then
+          echo "✅ Button disabled logic implemented"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Button disabled logic not implemented correctly"
+        fi
+
+    # ----------------------------
+    # THEME SWITCHER CHECKS (3 marks)
+    # ----------------------------
+    - name: P3 – ThemeSwitcher: Toggle functionality (1 mark)
+      run: |
+        if grep -r "toggle" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null || \
+           grep -r "setTheme" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null; then
+          echo "✅ Theme toggle functionality found"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Theme toggle functionality not found"
+        fi
+
+    - name: P3 – ThemeSwitcher: Light/dark mode styles (1 mark)
+      run: |
+        if (grep -r "light" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null || \
+            grep -r "Light" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null) && \
+           (grep -r "dark" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null || \
+            grep -r "Dark" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null); then
+          echo "✅ Light/dark mode styles implemented"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Light/dark mode styles not found"
+        fi
+
+    - name: P3 – ThemeSwitcher: Visual distinction (1 mark)
+      run: |
+        if grep -r "backgroundColor\|background-color" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null || \
+           grep -r "color.*white\|color.*black" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null || \
+           grep -r "className.*light\|className.*dark" practical-3-components/src/components/ThemeSwitcher.* 2>/dev/null; then
+          echo "✅ Visual distinction between themes"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        else
+          echo "❌ Visual distinction between themes not clear"
+        fi
+
+    # ----------------------------
+    # APP.JS INTEGRATION CHECKS (2 marks)
+    # ----------------------------
+    - name: P3 – App.js imports all components (1 mark)
+      run: |
+        IMPORTS_CORRECT=1
+        for comp in Counter TweetInput ThemeSwitcher; do
+          if ! grep -r "import.*${comp}" practical-3-components/src/App.* 2>/dev/null; then
+            echo "❌ ${comp} not imported in App.js"
+            IMPORTS_CORRECT=0
+          fi
+        done
+        
+        if [ $IMPORTS_CORRECT -eq 1 ]; then
+          echo "✅ All components imported in App.js"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        fi
+
+    - name: P3 – App.js renders all components (1 mark)
+      run: |
+        RENDERS_CORRECT=1
+        for comp in Counter TweetInput ThemeSwitcher; do
+          if ! grep -r "<${comp}" practical-3-components/src/App.* 2>/dev/null; then
+            echo "❌ ${comp} not rendered in App.js"
+            RENDERS_CORRECT=0
+          fi
+        done
+        
+        if [ $RENDERS_CORRECT -eq 1 ]; then
+          echo "✅ All components rendered in App.js"
+          echo "SCORE=$((SCORE+1))" >> $GITHUB_ENV
+        fi
+
+    # ----------------------------
+    # CODE CLEANLINESS (2 marks)
+    # ----------------------------
+    - name: P3 – Code cleanliness check (2 marks)
+      run: |
+        # Check for proper React syntax and no obvious errors
+        ERRORS=0
+        if grep -r "console.error\|alert\|prompt" practical-3-components/src/ 2>/dev/null | grep -v "//.*console" > /dev/null; then
+          echo "⚠️  Found console.error/alert/prompt (usually not needed)"
+        fi
+        
+        # Check for basic React patterns
+        if grep -r "export default" practical-3-components/src/components/ 2>/dev/null | wc -l | grep -q "^3$"; then
+          echo "✅ All components properly exported"
+        else
+          echo "⚠️  Some components may not be properly exported"
+        fi
+        
+        # Check for JSX return statements
+        JSX_FILES=$(find practical-3-components/src/components/ -name "*.js" -o -name "*.jsx" 2>/dev/null | wc -l)
+        if [ $JSX_FILES -ge 3 ]; then
+          echo "✅ JSX files present"
+          echo "SCORE=$((SCORE+2))" >> $GITHUB_ENV
+        else
+          echo "❌ Not enough JSX component files"
+        fi
+
+    # ----------------------------
+    # FINAL SCORE DISPLAY
+    # ----------------------------
+    - name: Display Final Score
+      run: |
+        echo "=========================================="
+        echo "          FINAL PRACTICAL SCORE"
+        echo "=========================================="
+        echo ""
+        echo "  Practical 2 - Hello World:"
+        echo "    ✓ Structure exists: 2 marks"
+        echo "    ✓ npm install works: 2 marks" 
+        echo "    ✓ Hello World rendered: 3 marks"
+        echo ""
+        echo "  Practical 3 - Components:"
+        echo "    ✓ Project structure: 2 marks"
+        echo "    ✓ Components exist: 2 marks"
+        echo "    ✓ Counter (3 marks):"
+        echo "      - Starts at 0: 1 mark"
+        echo "      - Separate buttons: 1 mark"
+        echo "      - State updates: 1 mark"
+        echo "    ✓ TweetInput (3 marks):"
+        echo "      - Character limit: 1 mark"
+        echo "      - Red text feedback: 1 mark"
+        echo "      - Button disabled: 1 mark"
+        echo "    ✓ ThemeSwitcher (3 marks):"
+        echo "      - Toggle functionality: 1 mark"
+        echo "      - Light/dark styles: 1 mark"
+        echo "      - Visual distinction: 1 mark"
+        echo "    ✓ App.js integration: 2 marks"
+        echo "    ✓ Code cleanliness: 2 marks"
+        echo ""
+        echo "  ---------------------------------------"
+        echo "  TOTAL SCORE: $SCORE / 20"
+        echo "=========================================="
+        
+        # Determine grade
+        if [ $SCORE -eq 20 ]; then
+          echo "🎉 EXCELLENT! Perfect score!"
+        elif [ $SCORE -ge 16 ]; then
+          echo "✅ VERY GOOD!"
+        elif [ $SCORE -ge 12 ]; then
+          echo "⚠️  PASSING - Room for improvement"
+        else
+          echo "❌ FAILING - Please review requirements"
+        fi
+
+    # ----------------------------
+    # CREATE SCORE FILE
+    # ----------------------------
+    - name: Create score file
+      run: |
+        echo "Practical Score: $SCORE/20" > score.txt
+        echo "Graded on: $(date)" >> score.txt
+        echo "" >> score.txt
+        echo "Breakdown:" >> score.txt
+        echo "- Practical 2: 7 marks" >> score.txt
+        echo "- Practical 3: 13 marks" >> score.txt
+        echo "- Total: 20 marks" >> score.txt
+
+    - name: Upload score as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: grading-results
+        path: score.txt
